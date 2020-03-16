@@ -54,6 +54,17 @@ FermionVectorTp::~FermionVectorTp() {
   sfree(fv);
 }
 
+int FermionVectorTp::siteOffset(const int lcl[], const int lcl_sites[]) const
+{
+  int l = 4 - 1;
+  int offset = lcl[l];
+  while (l-- > 0) {
+    offset *= lcl_sites[l];
+    offset += lcl[l];
+  }
+  return offset;
+}
+
 // Zero at every color,spin,space-time point
 void FermionVectorTp::ZeroSource() {
   char *fname = "ZeroSource()";
@@ -741,6 +752,185 @@ void FermionVectorTp::SetLandauGaugeMomentaSource( Lattice& lat,
 // Typical vales: w=4.35, N=40
 //
 // TB 9/2004
+
+// set point splitting source 
+void FermionVectorTp::SetLGFPSPLTSource(Lattice& lat, int color, int spin, 
+				     int x, int y, int z, int t, int dir, int option) {
+
+  char *fname = "SetPointSource(color,spin,x,y,z,t)";
+  
+  VRB.Func(cname, fname);
+
+  // trap for wrong arguments
+  if (x < 0 || x >= GJP.Xnodes() * GJP.XnodeSites() ||
+      y < 0 || y >= GJP.Ynodes() * GJP.YnodeSites() ||
+      z < 0 || z >= GJP.Znodes() * GJP.ZnodeSites() ||
+      t < 0 || t >= GJP.Tnodes() * GJP.TnodeSites())
+    ERR.General(cname, fname,
+    "Coordonate arguments out of range: x=%d, y=%d, z=%d, t=%d\n",
+    x, y, z, t);
+
+  if (color < 0 || color >= GJP.Colors())
+    ERR.General(cname, fname,
+    "Color index out of range: color = %d\n", color);
+
+  if (spin < 0 || spin > 3)
+    ERR.General(cname, fname,
+    "Spin index out of range: spin = %d\n", spin);
+
+  // zero the vector
+  //int fv_size = GJP.VolNodeSites() * GJP.Colors() * 8;
+  //for (int i = 0; i < fv_size; i++)
+  //*((Float *)fv + i) = 0;
+
+  int x_o[4]={x,y,z,t};
+
+  // set point source
+  int procCoorX = x / GJP.XnodeSites();
+  int procCoorY = y / GJP.YnodeSites();
+  int procCoorZ = z / GJP.ZnodeSites();
+  int procCoorT = t / GJP.TnodeSites();
+  int localX = x % GJP.XnodeSites();
+  int localY = y % GJP.YnodeSites();
+  int localZ = z % GJP.ZnodeSites();
+  int localT = t % GJP.TnodeSites();
+
+  int procCoor_p[4]={procCoorX,procCoorY,procCoorZ,procCoorT};
+  int procCoor_m[4]={procCoorX,procCoorY,procCoorZ,procCoorT};
+  int lcl[4]={localX,localY,localZ,localT};
+  int local_p[4]={localX,localY,localZ,localT};
+  int local_m[4]={localX,localY,localZ,localT};
+
+  int lcl_sites[4]={GJP.XnodeSites(), GJP.YnodeSites(), GJP.ZnodeSites(), GJP.TnodeSites()};
+  int glb_sites[4]={GJP.Xnodes()*GJP.XnodeSites(), GJP.Ynodes()*GJP.YnodeSites(), GJP.Znodes()*GJP.ZnodeSites(), GJP.Tnodes()*GJP.TnodeSites()};
+
+  procCoor_p[dir] = ( ( x_o[dir] + 1 ) % glb_sites[dir] ) / lcl_sites[dir];
+  procCoor_m[dir] = ( ( x_o[dir] - 1 + glb_sites[dir] ) % glb_sites[dir] ) / lcl_sites[dir];
+
+  local_p[dir] = ( ( x_o[dir] + 1 ) % glb_sites[dir] ) % lcl_sites[dir];
+  local_m[dir] = ( ( x_o[dir] - 1 + glb_sites[dir] ) % glb_sites[dir] ) % lcl_sites[dir];
+
+  int coor_x = 0;
+  int coor_y = 0;
+  int coor_z = 0;
+  int coor_t = 0;
+#ifdef PARALLEL
+  coor_x = GJP.XnodeCoor();
+  coor_y = GJP.YnodeCoor();
+  coor_z = GJP.ZnodeCoor();
+  coor_t = GJP.TnodeCoor();
+#endif
+//VRB.Result("","","HH %d %d %d %d\n", coor_x, coor_y, coor_z, coor_t);
+
+  // U_nu(x_0)
+  Matrix *gauge_field = lat.GaugeField();  
+  Matrix link0;
+  link0.ZeroMatrix();
+
+  // V(x_0)
+  Matrix *pM = lat.FixGaugePtr()[0];  
+  Matrix linkv;
+  linkv.ZeroMatrix();
+
+  if (coor_x == procCoorX &&
+      coor_y == procCoorY &&
+      coor_z == procCoorZ &&
+      coor_t == procCoorT) {
+    // U_mu(x) where mu = dir
+    link0 = *(gauge_field + siteOffset(lcl,lcl_sites) * 4 + dir) ;
+    linkv = pM[siteOffset(lcl,lcl_sites)];
+  }
+
+  slice_sum((Float*)&link0, 18, 99);
+  slice_sum((Float*)&linkv, 18, 99);
+
+  Vector temp;
+
+  if ( option == 0 ) {
+
+  if (coor_x == procCoor_p[0] &&
+      coor_y == procCoor_p[1] &&
+      coor_z == procCoor_p[2] &&
+      coor_t == procCoor_p[3]) {
+    int f_off = 2 * (color + GJP.Colors() * (spin + 4 * siteOffset(local_p,lcl_sites)));
+    fv[f_off] = -1.0;
+
+
+    f_off = 2 * (GJP.Colors() * (spin + 4 * siteOffset(local_p,lcl_sites)));
+
+    Matrix tempmat;
+    tempmat.Dagger((IFloat*)&linkv);
+    temp.CopyVec((Vector*)&fv[f_off], 6 );
+    uDotXEqual( (IFloat*) &fv[f_off], (const IFloat*) &tempmat, (const IFloat*)&temp );
+
+    tempmat.Dagger((IFloat*)&link0);
+    temp.CopyVec((Vector*)&fv[f_off], 6 );
+    uDotXEqual( (IFloat*) &fv[f_off], (const IFloat*) &tempmat, (const IFloat*)&temp );
+  }
+
+  if (coor_x == procCoor_m[0] &&
+      coor_y == procCoor_m[1] &&
+      coor_z == procCoor_m[2] &&
+      coor_t == procCoor_m[3]) {
+    int f_off = 2 * (color + GJP.Colors() * (spin + 4 * siteOffset(local_m,lcl_sites)));
+
+    fv[f_off] = 1.0;
+
+    Matrix linkm;
+    linkm = *(gauge_field + siteOffset(local_m,lcl_sites) * 4 + dir) ;
+
+    f_off = 2 * (GJP.Colors() * (spin + 4 * siteOffset(local_m,lcl_sites)));
+
+    Matrix tempmat;
+    tempmat.Dagger((IFloat*)&linkv);
+    temp.CopyVec((Vector*)&fv[f_off], 6 );
+    uDotXEqual( (IFloat*) &fv[f_off], (const IFloat*) &tempmat, (const IFloat*)&temp );
+
+    temp.CopyVec((Vector*)&fv[f_off], 6 );
+    uDotXEqual( (IFloat*) &fv[f_off], (const IFloat*) &linkm, (const IFloat*)&temp );
+  }
+
+  } else if ( option == 1 ) {
+
+  if (coor_x == procCoor_p[0] &&
+      coor_y == procCoor_p[1] &&
+      coor_z == procCoor_p[2] &&
+      coor_t == procCoor_p[3]) {
+    int f_off = 2 * (color + GJP.Colors() * (spin + 4 * siteOffset(local_p,lcl_sites)));
+    //fv[f_off] = -1.0;
+    fv[f_off] = -0.25;
+
+    f_off = 2 * (GJP.Colors() * (spin + 4 * siteOffset(local_p,lcl_sites)));
+
+    Matrix tempmat;
+    tempmat.Dagger((IFloat*)&link0);
+    temp.CopyVec((Vector*)&fv[f_off], 6 );
+    uDotXEqual( (IFloat*) &fv[f_off], (const IFloat*) &tempmat, (const IFloat*)&temp );
+  }
+
+  if (coor_x == procCoor_m[0] &&
+      coor_y == procCoor_m[1] &&
+      coor_z == procCoor_m[2] &&
+      coor_t == procCoor_m[3]) {
+    int f_off = 2 * (color + GJP.Colors() * (spin + 4 * siteOffset(local_m,lcl_sites)));
+
+    //fv[f_off] = 1.0;
+    fv[f_off] = 0.25;
+
+    Matrix linkm;
+    linkm = *(gauge_field + siteOffset(local_m,lcl_sites) * 4 + dir) ;
+
+    f_off = 2 * (GJP.Colors() * (spin + 4 * siteOffset(local_m,lcl_sites)));
+
+    temp.CopyVec((Vector*)&fv[f_off], 6 );
+    uDotXEqual( (IFloat*) &fv[f_off], (const IFloat*) &linkm, (const IFloat*)&temp );
+  }
+
+  }
+
+
+}
+
 void FermionVectorTp::GaussianSmearVector(Lattice& lat, 
 					  int spin, 
 					  int Niter, 

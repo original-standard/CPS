@@ -298,19 +298,30 @@ public:
 
 
 
+class QPropWPSPLTSrc : public QPropW {
+public:
+  int dir;
+  // CONSTRUCTORS
+  QPropWPSPLTSrc(Lattice& lat, CommonArg* c_arg,int);
+  // Most likely it is not needed since the base class copy constructor 
+  // will be used. CHECK it!!!
+  //    QPropWPointSrc(const QPropWPointSrc& rhs);
+  QPropWPSPLTSrc(Lattice& lat, QPropWArg* arg, CommonArg* c_arg,int);
+  void SetSource(FermionVectorTp& src, int spin, int color);
+  SourceType SrcType() { return POINT; }
+};
 
+ 
 
 
 
 class QPropWWallSrc : public QPropW {
-
 public:
-  
   // CONSTRUCTORS
   QPropWWallSrc(Lattice& lat, CommonArg* c_arg);
   // Most likely it is not needed since the base class copy constructor 
   // will be used. CHECK it!!!
-  //    QPropWWallSrc(const QPropWWallSrc& rhs);
+  //QPropWWallSrc(const QPropWWallSrc& rhs);
   QPropWWallSrc(Lattice& lat, QPropWArg* arg, CommonArg* c_arg);
   QPropWWallSrc(QPropWWallSrc& prop1, QPropWWallSrc& prop2 );
   

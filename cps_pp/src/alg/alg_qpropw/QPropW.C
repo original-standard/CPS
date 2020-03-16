@@ -1320,6 +1320,35 @@ void QPropW::SetSource(FermionVectorTp& src, int spin, int color) {
    // This function should be overridden by specific QPropW types
    
 }
+//POINT SPLIT SOURCE
+QPropWPSPLTSrc::QPropWPSPLTSrc(Lattice& lat, CommonArg* c_arg,int d) : 
+  QPropW(lat, c_arg) {
+  dir = d;
+  char *fname = "QPropWPSPLTSrc(L&, ComArg*)";
+  cname = "QPropWPointSrc";
+  VRB.Func(cname, fname);
+}
+
+QPropWPSPLTSrc::QPropWPSPLTSrc(Lattice& lat,  QPropWArg* arg,
+			       CommonArg* c_arg,int d) : 
+  QPropW(lat, arg, c_arg) {
+  dir = d;
+  char *fname = "QPropWPointSrc(L&, ComArg*)";
+  cname = "QPropWPointSrc";
+  VRB.Func(cname, fname);
+  
+  Run();
+}
+
+void QPropWPSPLTSrc::SetSource(FermionVectorTp& src, int spin, int color) {
+
+  char *fname = "SetSource()";
+  VRB.Func(cname, fname);
+
+  src.ZeroSource();
+  src.SetLGFPSPLTSource(AlgLattice(),color,spin,qp_arg.x,qp_arg.y,qp_arg.z,qp_arg.t,dir,1); // 1 = 1
+}
+
 
 Complex& QPropW::rand_src(int i) const { 
   //Do nothing ....

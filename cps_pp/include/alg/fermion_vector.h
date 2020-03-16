@@ -98,6 +98,8 @@ public:
   void SetGFLfuncSource(Lattice& lat, int color, int spin,
                 Float (*func)(int gx,int gy,int gz,int gt));
 
+ void SetLGFPSPLTSource(Lattice& lat, int color, int spin,
+                               int x, int y, int z, int t, int dir, int option);
   // === for exponential smeared source ================================
   void SetExpSource( int color, int spin, int x, int y, int z, int t,
                      Float A, Float B, Float C) ;
@@ -142,6 +144,8 @@ public:
   /* source for the NPR of derivative operators */
   void SetGFDerivativeSource(Lattice& lat,int color, int spin,
 			     int d, int x, int y, int z, int t) ;
+
+ int siteOffset(const int lcl[], const int lcl_sites[]) const;
 
 };
 
